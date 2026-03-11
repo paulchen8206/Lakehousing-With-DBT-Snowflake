@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dbt-config
+  namespace: lakehouse-dbt
+data:
+  profiles.yml: |
+    lakehousing_snowflake:
+      target: "{{ env_var('DBT_TARGET', 'dev') }}"
+      outputs:
+        dev:
+          type: snowflake
+          account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+          user: "{{ env_var('SNOWFLAKE_USER') }}"
+          password: "{{ env_var('SNOWFLAKE_PASSWORD') }}"
+          role: "{{ env_var('SNOWFLAKE_ROLE', 'TRANSFORMER') }}"
+          database: "{{ env_var('SNOWFLAKE_DATABASE', 'LAKEHOUSE') }}"
+          warehouse: "{{ env_var('SNOWFLAKE_WAREHOUSE', 'COMPUTE_WH') }}"
+          schema: "{{ env_var('SNOWFLAKE_SCHEMA', 'RAW') }}"
+          threads: 8
+  dbt-run.sh: |
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd /opt/dbt
+    dbt deps
+    dbt run --select bronze silver gold
+    dbt test

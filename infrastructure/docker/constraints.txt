@@ -1,0 +1,2 @@
+# Pin critical dbt adapter version via constraints for reproducible installs.
+dbt-snowflake==1.8.4

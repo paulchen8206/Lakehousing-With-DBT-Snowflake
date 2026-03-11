@@ -1,0 +1,20 @@
+image:
+  repository: lakehousing-dbt
+  tag: latest
+  pullPolicy: IfNotPresent
+schedule: "*/30 * * * *"
+dbt:
+  command:
+  - "bash"
+  - "-lc"
+  - "dbt deps && dbt run --select bronze silver gold && dbt test"
+snowflake:
+  createSecret: false
+  existingSecretName: "dbt-snowflake-secret"
+resources:
+  requests:
+    cpu: "250m"
+    memory: "512Mi"
+  limits:
+    cpu: "1"
+    memory: "2Gi"

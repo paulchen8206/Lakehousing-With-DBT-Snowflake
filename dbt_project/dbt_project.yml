@@ -1,0 +1,37 @@
+name: lakehousing_dbt
+version: 1.0.0
+config-version: 2
+profile: lakehousing_snowflake
+model-paths: ["models"]
+seed-paths: ["seeds"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+target-path: "target"
+clean-targets:
+- "target"
+- "dbt_packages"
+vars:
+  timezone: UTC
+models:
+  lakehousing_dbt:
+    +persist_docs:
+      relation: true
+      columns: true
+    staging:
+      +materialized: view
+      +schema: STAGING
+    bronze:
+      +materialized: incremental
+      +schema: BRONZE
+      +on_schema_change: append_new_columns
+    silver:
+      +materialized: incremental
+      +schema: SILVER
+      +on_schema_change: sync_all_columns
+    gold:
+      +materialized: table
+      +schema: GOLD
+seeds:
+  lakehousing_dbt:
+    +schema: REFERENCE
+    +quote_columns: false

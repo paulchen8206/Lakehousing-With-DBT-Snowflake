@@ -1,0 +1,110 @@
+name: CD
+on:
+  push:
+    branches:
+    - main
+    - prd
+    paths:
+    - dbt_project/**
+    - infrastructure/**
+    - config/**
+    - scripts/**
+    - Dockerfile
+    - docker-compose.yml
+    - docker-compose.local.yml
+    - .github/workflows/cd.yml
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: Deploy to Kubernetes using Helm
+        type: boolean
+        default: false
+permissions:
+  contents: read
+  packages: write
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: lakehousing-dbt
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.meta.outputs.version }}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: Setup Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    - name: Login to GHCR
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    - name: Normalize owner for image path
+      id: owner
+      run: echo "owner_lc=$(echo \"${GITHUB_REPOSITORY_OWNER}\" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+    - name: Extract Docker metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ steps.owner.outputs.owner_lc }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=raw,value=latest
+          type=sha,format=short
+    - name: Build and push
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        file: infrastructure/docker/Dockerfile
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.deploy == true }}
+    environment:
+      name: production
+    env:
+      K8S_NAMESPACE: lakehouse-dbt
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: Setup kubectl
+      uses: azure/setup-kubectl@v4
+    - name: Setup Helm
+      uses: azure/setup-helm@v4
+    - name: Configure kubeconfig
+      run: |
+        mkdir -p ~/.kube
+        echo "${KUBE_CONFIG_DATA}" | base64 --decode > ~/.kube/config
+      env:
+        KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG_DATA }}
+    - name: Deploy with Helm
+      run: |
+        OWNER_LC="$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+        helm upgrade --install lakehousing infrastructure/helm/dbt-medallion \
+          --namespace "${K8S_NAMESPACE}" \
+          --create-namespace \
+          --set image.repository="${REGISTRY}/${OWNER_LC}/${IMAGE_NAME}" \
+          --set image.tag=latest \
+          --set snowflake.account="${SNOWFLAKE_ACCOUNT}" \
+          --set snowflake.user="${SNOWFLAKE_USER}" \
+          --set snowflake.password="${SNOWFLAKE_PASSWORD}" \
+          --set snowflake.role="${SNOWFLAKE_ROLE}" \
+          --set snowflake.warehouse="${SNOWFLAKE_WAREHOUSE}" \
+          --set snowflake.database="${SNOWFLAKE_DATABASE}" \
+          --set snowflake.schema="${SNOWFLAKE_SCHEMA}" \
+          --set snowflake.target="${DBT_TARGET}"
+      env:
+        REGISTRY: ${{ env.REGISTRY }}
+        IMAGE_NAME: ${{ env.IMAGE_NAME }}
+        SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+        SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+        SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+        SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_ROLE }}
+        SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
+        SNOWFLAKE_DATABASE: ${{ secrets.SNOWFLAKE_DATABASE }}
+        SNOWFLAKE_SCHEMA: ${{ secrets.SNOWFLAKE_SCHEMA }}
+        DBT_TARGET: ${{ secrets.DBT_TARGET }}

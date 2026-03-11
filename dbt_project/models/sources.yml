@@ -1,0 +1,17 @@
+version: 2
+sources:
+- name: raw
+  description: Raw data landed from AWS S3 into Snowflake external tables.
+  database: "{{ env_var('SNOWFLAKE_DATABASE', 'LAKEHOUSE') }}"
+  schema: RAW
+  tables:
+  - name: orders_ext
+    description: External table reading JSON orders from s3://<bucket>/orders/
+    columns:
+    - name: v
+      description: Variant payload from S3 file.
+  - name: customers_ext
+    description: External table reading JSON customers from s3://<bucket>/customers/
+    columns:
+    - name: v
+      description: Variant payload from S3 file.

@@ -1,0 +1,16 @@
+[
+  {
+    "id": "c-101",
+    "first_name": "Avery",
+    "last_name": "Ng",
+    "email": "avery.ng@example.com",
+    "country": "US"
+  },
+  {
+    "id": "c-102",
+    "first_name": "Jules",
+    "last_name": "Diaz",
+    "email": "jules.diaz@example.com",
+    "country": "CA"
+  }
+]

@@ -1,0 +1,26 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "dbt-medallion.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  schedule: {{ .Values.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: dbt-runner
+              image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              command: {{ toJson .Values.dbt.command }}
+              envFrom:
+                - secretRef:
+                    name: {{ default (printf "%s-snowflake" (include "dbt-medallion.fullname" .)) .Values.snowflake.existingSecretName }}
+              resources:
+                {{- toYaml .Values.resources | nindent 16 }}

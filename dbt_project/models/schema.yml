@@ -1,0 +1,97 @@
+version: 2
+seeds:
+- name: valid_order_statuses
+  description: Reference list of allowed order statuses.
+  columns:
+  - name: order_status
+    tests:
+    - unique
+    - not_null
+  - name: is_active
+    tests:
+    - not_null
+- name: country_reference
+  description: Country reference dimension for customer and revenue validation.
+  columns:
+  - name: country
+    tests:
+    - unique
+    - not_null
+  - name: country_name
+    tests:
+    - not_null
+models:
+- name: stg_orders
+  description: Parsed orders payload from raw external table.
+  columns:
+  - name: order_id
+    tests:
+    - not_null
+  - name: customer_id
+    tests:
+    - not_null
+- name: stg_customers
+  description: Parsed customers payload from raw external table.
+  columns:
+  - name: customer_id
+    tests:
+    - not_null
+- name: brz_orders
+  description: Bronze orders table preserving ingestion details.
+  columns:
+  - name: order_id
+    tests:
+    - unique
+    - not_null
+- name: brz_customers
+  description: Bronze customers table preserving ingestion details.
+  columns:
+  - name: customer_id
+    tests:
+    - unique
+    - not_null
+- name: slv_orders
+  description: De-duplicated latest order state.
+  columns:
+  - name: order_id
+    tests:
+    - unique
+    - not_null
+  - name: total_amount
+    tests:
+    - dbt_utils.accepted_range:
+        min_value: 0
+  - name: order_status
+    tests:
+    - relationships:
+        to: ref('valid_order_statuses')
+        field: order_status
+- name: slv_customers
+  description: De-duplicated latest customer dimension.
+  columns:
+  - name: customer_id
+    tests:
+    - unique
+    - not_null
+  - name: email
+    tests:
+    - dbt_utils.not_empty_string
+  - name: country
+    tests:
+    - relationships:
+        to: ref('country_reference')
+        field: country
+- name: gld_daily_revenue
+  description: Gold mart for daily revenue reporting by country.
+  columns:
+  - name: order_date
+    tests:
+    - not_null
+  - name: gross_revenue
+    tests:
+    - not_null
+  - name: country
+    tests:
+    - relationships:
+        to: ref('country_reference')
+        field: country

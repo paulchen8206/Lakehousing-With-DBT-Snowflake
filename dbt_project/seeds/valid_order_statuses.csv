@@ -1,0 +1,6 @@
+order_status,is_active
+completed,true
+processing,true
+pending,true
+cancelled,false
+fraud,false

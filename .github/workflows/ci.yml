@@ -1,0 +1,46 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches:
+    - main
+    - develop
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      # Dummy vars for static dbt parsing in CI.
+      SNOWFLAKE_ACCOUNT: ci-account
+      SNOWFLAKE_USER: ci-user
+      SNOWFLAKE_PASSWORD: ci-password
+      SNOWFLAKE_ROLE: TRANSFORMER
+      SNOWFLAKE_WAREHOUSE: COMPUTE_WH
+      SNOWFLAKE_DATABASE: LAKEHOUSE
+      SNOWFLAKE_SCHEMA: RAW
+      DBT_TARGET: dev
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+    - name: Install dbt and SQL lint tools
+      run: |
+        python -m pip install --upgrade pip
+        pip install dbt-snowflake==1.8.4 sqlfluff==3.1.1 sqlfluff-templater-dbt==3.1.1
+    - name: Install Helm
+      uses: azure/setup-helm@v4
+    - name: dbt deps
+      run: dbt deps --project-dir dbt_project --profiles-dir config
+    - name: dbt parse
+      run: dbt parse --project-dir dbt_project --profiles-dir config
+    - name: SQLFluff lint
+      run: |
+        sqlfluff lint dbt_project/models --config .sqlfluff
+    - name: Helm lint
+      run: helm lint infrastructure/helm/dbt-medallion
+    - name: Helm template validation
+      run: helm template lakehousing infrastructure/helm/dbt-medallion > /tmp/helm-rendered.yaml
+    - name: Build Docker image
+      run: docker build -t lakehousing-dbt:ci -f infrastructure/docker/Dockerfile .

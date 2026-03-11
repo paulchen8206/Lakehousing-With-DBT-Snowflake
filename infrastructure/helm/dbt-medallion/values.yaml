@@ -1,0 +1,29 @@
+image:
+  repository: lakehousing-dbt
+  tag: latest
+  pullPolicy: IfNotPresent
+schedule: "0 * * * *"
+namespace: lakehouse-dbt
+dbt:
+  command:
+  - "bash"
+  - "-lc"
+  - "dbt deps && dbt run --select bronze silver gold && dbt test"
+snowflake:
+  createSecret: true
+  existingSecretName: ""
+  account: "xy12345.us-east-1"
+  user: "DBT_USER"
+  password: "replace-me"
+  role: "TRANSFORMER"
+  warehouse: "COMPUTE_WH"
+  database: "LAKEHOUSE"
+  schema: "RAW"
+  target: "dev"
+resources:
+  requests:
+    cpu: "250m"
+    memory: "512Mi"
+  limits:
+    cpu: "1"
+    memory: "2Gi"
