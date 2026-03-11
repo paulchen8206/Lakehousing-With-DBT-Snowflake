@@ -1,6 +1,8 @@
-# Lakehousing With dbt + Snowflake + S3 (Bronze/Silver/Gold)
+# Lakehousing With dbt + Snowflake + AWS S3 (Bronze/Silver/Gold)
 
 A production-style starter project implementing a medallion architecture on Snowflake, using AWS S3 as the raw data lake, with dbt transformations, containerized execution, and Kubernetes + Helm orchestration.
+
+This project can also be used as a migration reference for legacy data systems moving to a modern data program. The same architecture patterns apply across AWS, GCP, and Azure by substituting equivalent cloud storage, secrets management, and Kubernetes services.
 
 ## Quick Navigation
 
@@ -404,6 +406,8 @@ helm upgrade --install lakehousing infrastructure/helm/dbt-medallion \
 ## 6) CI/CD with GitHub Actions
 
 The repository includes GitHub Actions workflows:
+
+The automation pattern is platform-agnostic and can be implemented with other Git-based CI/CD systems such as GitLab CI/CD, Bitbucket Pipelines, Azure DevOps, or Jenkins while preserving the same build/test/deploy stages.
 
 - CI workflow: `.github/workflows/ci.yml`
   - runs `dbt deps` + `dbt parse`
