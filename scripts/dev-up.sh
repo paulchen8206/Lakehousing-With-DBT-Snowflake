@@ -21,7 +21,7 @@ if [[ ! -f .env.local ]]; then
   echo "Created .env.local from .env.local.example"
 fi
 
-chmod +x scripts/secrets-bootstrap.sh scripts/render-env-from-secrets.sh scripts/k8s-secret-from-localstack.sh scripts/minio-check.sh
+chmod +x scripts/secrets-bootstrap.sh scripts/render-env-from-secrets.sh scripts/k8s-secret-from-localstack.sh scripts/minio-check.sh scripts/snowflake-verify.sh
 
 echo "Starting LocalStack + MinIO"
 docker compose -f docker-compose.local.yml --env-file .env.local up -d --build localstack minio minio-init
@@ -39,6 +39,9 @@ bash scripts/secrets-bootstrap.sh
 
 echo "Rendering dbt runtime environment from LocalStack Secrets Manager"
 bash scripts/render-env-from-secrets.sh .env.local.resolved
+
+echo "Verifying Snowflake prerequisites before Kubernetes deployment"
+bash scripts/snowflake-verify.sh .env.local.resolved
 
 echo "Validating MinIO seed data"
 bash scripts/minio-check.sh

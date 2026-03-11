@@ -2,6 +2,50 @@
 
 A production-style starter project implementing a medallion architecture on Snowflake, using AWS S3 as the raw data lake, with dbt transformations, containerized execution, and Kubernetes + Helm orchestration.
 
+## Quick Navigation
+
+- Modern platform concepts: `Modern Data Platform and Modern Data Engineering`
+- Architecture views: `Architecture`, `Deployment Architecture`, `Production CI/CD Deployment Flow`
+- Fastest local path: `New Contributor Quickstart (5 Commands)`
+- Snowflake bootstrap and checks: `1) Snowflake + S3 Setup`
+- Day-to-day operations: `Local Dev Environment`, `Runbooks`
+- Deployment options: `4) Deploy on Kubernetes (Raw YAML)`, `5) Deploy with Helm`
+- Automation and release: `6) CI/CD with GitHub Actions`
+
+## Modern Data Platform and Modern Data Engineering
+
+A modern data platform is a composable operating model for analytics and data products. It separates storage, compute, transformation, orchestration, and governance so teams can scale independently while still enforcing common standards.
+
+Modern data engineering is the practice of building this platform as software: version-controlled pipelines, test-first transformations, reproducible environments, and automated deploy workflows. The goal is not only to move data, but to deliver trusted, observable, and continuously improving data products.
+
+In this project, that mindset is implemented through:
+
+- Cloud data warehouse compute in Snowflake
+- Lake-style raw ingestion and external table access
+- SQL-first transformations with dbt and built-in testing
+- Containerized runtime for parity across local and cluster execution
+- Kubernetes and Helm for repeatable scheduling and deployment
+- CI/CD automation for validation, release, and promotion
+
+## Leading-Edge Architecture Patterns (and How This Repo Uses Them)
+
+1. Lakehouse medallion layering:
+  Raw and semi-structured data is staged, then promoted through bronze, silver, and gold layers to improve quality, semantics, and business readiness.
+2. ELT with warehouse-native transformation:
+  Data lands first, then transformations run inside the warehouse for performance and elasticity.
+3. SQL-as-code with software engineering controls:
+  dbt models, tests, and documentation are versioned and validated in automated workflows.
+4. Immutable runtime artifacts:
+  dbt runs in a Docker image, reducing environment drift between developer machines and Kubernetes jobs.
+5. GitOps-style delivery pipeline:
+  Changes flow through CI checks, image build/push, and automated Helm deploy steps.
+6. Shift-left operational validation:
+  Pre-deploy checks fail fast when Snowflake prerequisites are missing, reducing runtime incident noise.
+7. Secret-driven configuration:
+  Credentials are managed through LocalStack/Kubernetes secret synchronization rather than hardcoded manifests.
+8. Local production simulation:
+  Kind + LocalStack + MinIO reproduce core production mechanics so developers can test end-to-end behavior early.
+
 ## New Contributor Quickstart (5 Commands)
 
 ```bash
@@ -12,7 +56,21 @@ make dbt-seed
 make dbt-test
 ```
 
-Use this path for the fastest first run on a fresh machine. See Development Setup and Procedure below for full details.
+Use this path for the fastest first run on a fresh machine.
+
+Expected outcome:
+
+- Local services (LocalStack, MinIO, Kind) are running
+- Snowflake credentials are synced into `.env.local.resolved` and Kubernetes secret
+- dbt seed and tests complete successfully
+
+If setup fails, run:
+
+```bash
+make snowflake-verify
+```
+
+Then see `Runbooks` for full operational workflows.
 
 ## Architecture
 
@@ -29,6 +87,64 @@ flowchart LR
   I --> C
 ```
 
+## Deployment Architecture
+
+```mermaid
+flowchart TB
+  subgraph LocalDev[Local Development Environment]
+    ENV[.env.local]
+    MK[make dev-up]
+    LS[LocalStack Secrets Manager]
+    RES[.env.local.resolved]
+    VERIFY[make snowflake-verify]
+    K8S[Kind Cluster]
+    HELM[Helm Release: lakehousing]
+    CJ[CronJob: lakehousing-dbt-medallion]
+    IMG[Docker Image: lakehousing-dbt:latest]
+  end
+
+  subgraph DataSystems[Data Systems]
+    SF[(Snowflake)]
+    S3[(MinIO / S3-compatible Raw Bucket)]
+  end
+
+  ENV --> MK
+  MK --> LS
+  LS --> RES
+  RES --> VERIFY
+  VERIFY -->|pass| K8S
+  MK --> IMG
+  IMG --> K8S
+  K8S --> HELM
+  HELM --> CJ
+  CJ --> SF
+  CJ --> S3
+  LS -->|sync secret| K8S
+```
+
+## Production CI/CD Deployment Flow
+
+```mermaid
+flowchart LR
+  DEV[Developer Commit / PR] --> GH[GitHub Repository]
+  GH --> CI[GitHub Actions CI\n.github/workflows/ci.yml]
+  CI --> CI1[dbt deps + dbt parse]
+  CI --> CI2[SQLFluff + Helm lint/template]
+  CI --> CI3[Docker build verification]
+
+  GH -->|push main/prd or manual dispatch| CD[GitHub Actions CD\n.github/workflows/cd.yml]
+  CD --> BUILD[Build Image]
+  BUILD --> GHCR[(GHCR Image Registry)]
+  GHCR --> DEPLOY[Helm Upgrade/Install]
+  DEPLOY --> K8S[(Production Kubernetes Cluster)]
+  K8S --> CRON[CronJob: dbt-medallion]
+  CRON --> SNOW[(Snowflake)]
+
+  GH -->|tag v*| REL[Release Workflow\n.github/workflows/release.yml]
+  REL --> RELIMG[Publish immutable release image tags]
+  RELIMG --> GHCR
+```
+
 ## Project Layout
 
 - `dbt_project/`: dbt code including staging, bronze, silver, gold models
@@ -40,16 +156,49 @@ flowchart LR
 
 ## 1) Snowflake + S3 Setup
 
-1. Create `.env` from `.env.example` and fill your account/user/password values.
-2. Run `scripts/setup_snowflake.sql` in Snowflake as an admin role.
-3. Replace bucket and IAM role placeholders in the SQL script.
-4. Refresh external tables when new files are landed:
+1. For local development, create `.env.local` from `.env.local.example` and set real Snowflake credentials.
+
+```bash
+cp .env.local.example .env.local
+make creds-rotate
+```
+
+1. Validate Snowflake authentication before running bootstrap SQL:
+
+```bash
+docker run --rm --env-file .env.local.resolved lakehousing-dbt:latest \
+  "dbt debug --profiles-dir /home/dbt/.dbt --target dev"
+```
+
+1. Run `scripts/setup_snowflake.sql` in Snowflake as `ACCOUNTADMIN`.
+   - Option A (recommended): open a Snowflake worksheet as `ACCOUNTADMIN`, paste SQL from `scripts/setup_snowflake.sql`, then run it.
+   - Option B (CLI): run the same script using your Snowflake CLI (`snowsql` or `snow sql`) if installed.
+
+1. Replace bucket and IAM role placeholders in the SQL script.
+
+1. Refresh external tables when new files are landed:
 
 ```sql
 -- scripts/refresh_external_tables.sql
 alter external table LAKEHOUSE.RAW.orders_ext refresh;
 alter external table LAKEHOUSE.RAW.customers_ext refresh;
 ```
+
+For non-local Docker-only runs, you may still use `.env` and `.env.example` as described in `2) Run with Docker (Local)`.
+
+### Quick check: is bootstrap SQL still needed?
+
+Run these queries in Snowflake:
+
+```sql
+show databases like 'LAKEHOUSE';
+show warehouses like 'COMPUTE_WH';
+show roles like 'TRANSFORMER';
+show external tables like 'ORDERS_EXT' in schema LAKEHOUSE.RAW;
+show external tables like 'CUSTOMERS_EXT' in schema LAKEHOUSE.RAW;
+```
+
+If any object is missing, run `scripts/setup_snowflake.sql`.
 
 ## 2) Run with Docker (Local)
 
@@ -119,101 +268,75 @@ After updating values in `.env.local`, rotate and propagate with one command:
 make creds-rotate
 ```
 
+Before deploying or re-deploying Kubernetes jobs, verify Snowflake prerequisites:
+
+```bash
+make snowflake-verify
+```
+
 ### Important note about Snowflake + MinIO
 
 MinIO is for local S3-compatible development only. Snowflake external stages in production should still point to real AWS S3.
 
-## Development Setup and Procedure
+## Runbooks
 
-This section defines a practical, repeatable workflow for contributors.
+### Local Development Runbook
 
-### A) One-time developer setup
-
-1. Install tooling: Docker Desktop, kind, kubectl, helm, awscli, jq, Git.
-1. Clone repository and move into the project folder.
-1. Create local environment file and update values:
+1. Install prerequisites: Docker Desktop, kind, kubectl, helm, awscli, jq, Git.
+1. Create local environment and set real Snowflake credentials:
 
 ```bash
 cp .env.local.example .env.local
 ```
 
-1. Start full local platform (LocalStack, MinIO, Kind, Helm deployment):
+1. Bring up the local platform and validate dependencies:
 
 ```bash
 make dev-up
-```
-
-1. Validate local dependencies and seeded data:
-
-```bash
 make localstack-check
 make minio-check
 ```
 
-1. Validate dbt connectivity and baseline run:
+1. Validate Snowflake prerequisites and dbt execution path:
 
 ```bash
-make dbt-deps
-make dbt-debug
+make snowflake-verify
 make dbt-seed
 make dbt-run
 make dbt-test
 ```
 
-### B) Daily development loop
+1. Daily loop after code changes:
 
-1. Pull latest changes from your working branch.
-1. If credentials changed, rotate and sync:
+```bash
+make dbt-seed
+make dbt-run
+make dbt-test
+```
+
+1. If credentials changed:
 
 ```bash
 make creds-rotate
+make snowflake-verify
 ```
 
-1. Run fast validation while editing models:
-
-```bash
-make dbt-seed
-make dbt-run
-make dbt-test
-```
-
-1. For container/runtime changes, rebuild and verify:
+1. If infrastructure changed:
 
 ```bash
 make docker-build
-make docker-run
-```
-
-1. For Kubernetes/Helm changes, template before deploying:
-
-```bash
 make helm-template
 ```
 
-### C) Procedure for model changes
+### Production Operations Runbook
 
-1. Add or update SQL in staging, bronze, silver, or gold models.
-1. Add or update seed data if the model depends on controlled reference values.
-1. Add schema tests in model YAML (not null, unique, relationships, accepted range).
-1. Add singular tests in `dbt_project/tests/` for business rules.
-1. Run `make dbt-seed`, `make dbt-run`, and `make dbt-test`.
-1. Verify gold outputs and row-level expectations before opening a PR.
+1. Ensure CI checks pass for dbt parsing, SQL linting, Helm validation, and image build.
+1. Build and publish image through CD workflow.
+1. Deploy with Helm using environment-scoped secrets.
+1. Verify CronJob and runtime logs in Kubernetes.
+1. For releases, publish semantic tags (`v*`) to create immutable release images.
 
-### D) Procedure for infra changes
-
-1. For Docker changes, run `make docker-build`.
-1. For local platform changes, run `make dev-down` then `make dev-up`.
-1. For Helm changes, run `make helm-template` and inspect rendered manifests.
-1. For Kubernetes secret-related changes, run `make creds-rotate` and re-check deployment.
-
-### E) Pull request readiness checklist
-
-1. Local commands pass: `make dbt-seed`, `make dbt-run`, `make dbt-test`.
-1. If touched infra: `make docker-build` and `make helm-template` pass.
-1. Updated docs for any new environment variables, seeds, tests, or operational steps.
-1. No hardcoded credentials in committed files.
-
-### F) Common recovery commands
+### Recovery Commands
 
 ```bash
 # Full local stack restart
@@ -222,6 +345,9 @@ make dev-up
 
 # Rebuild only local credentials and sync to k8s
 make creds-rotate
+
+# Fail fast if Snowflake role/objects are missing
+make snowflake-verify
 
 # Re-run dbt lifecycle
 make dbt-seed
@@ -376,3 +502,73 @@ git push origin v1.0.0
 2. Move secrets to AWS Secrets Manager + External Secrets Operator.
 3. Add observability: dbt artifacts upload, run metadata, and alerting.
 4. Add more marts (customer 360, retention, product performance).
+
+## Release Notes
+
+This section is the canonical release communication format for platform, analytics, and delivery changes.
+
+### Release Announcement
+
+This codebase is provided on an "as is" basis for reference and implementation acceleration.
+No warranties are provided, express or implied, including fitness for a particular purpose, security hardening, or production readiness.
+The author and contributors are not responsible for direct or indirect loss, outages, data issues, or compliance impacts resulting from use, modification, or deployment of this repository.
+Each team is responsible for its own architecture review, security validation, governance controls, and operational risk acceptance before production use.
+
+### Current Release Summary
+
+1. Added fail-fast Snowflake verification before Kubernetes deployment (`make snowflake-verify`).
+2. Integrated Snowflake verification into local startup path (`make dev-up`).
+3. Improved LocalStack Secrets parsing for env rendering and Kubernetes secret synchronization.
+4. Fixed AWS CLI compatibility in MinIO checks by removing v2-only pager flags.
+5. Added local deployment and production CI/CD architecture diagrams.
+6. Consolidated runbooks for faster onboarding and operations.
+
+### Platform Impact Matrix
+
+| Domain | Change | Engineering Impact |
+| --- | --- | --- |
+| Runtime reliability | Snowflake preflight verification | Prevents launching jobs when role/object prerequisites are missing |
+| Configuration resilience | Secret JSON normalization | Reduces failures due to SecretString formatting differences |
+| Developer workflow | Runbook consolidation | Faster handoff and lower operational ambiguity |
+| Architecture communication | Added deployment diagrams | Improves review quality for design and release planning |
+
+### Principal Review References
+
+Use this checklist for Data Principals or Data Product Owners release sign-off:
+
+1. Architecture alignment: medallion boundaries and ownership are unchanged or explicitly approved.
+2. Reliability controls: `make snowflake-verify` passes in the target environment.
+3. Security posture: secrets are externally managed and not embedded in code/manifests.
+4. Data quality: dbt tests and business-rule tests pass for all impacted models.
+5. Operability: CronJob schedule, retries, and resources are validated for expected workload.
+6. Deployment integrity: image tag provenance, Helm values, and environment-scoped secrets are correct.
+7. Governance traceability: CI/CD run IDs, release tags, and deployment revision evidence are recorded.
+
+### Release Notes Template
+
+```md
+## Release <version> - <date>
+
+### Summary
+- <1-2 sentence business and platform summary>
+
+### Included Changes
+- Data models:
+  - <model or layer updates>
+- Platform/infra:
+  - <k8s/helm/container/secret updates>
+- CI/CD:
+  - <pipeline or release process updates>
+
+### Validation Evidence
+- dbt tests: <pass/fail + run link>
+- Snowflake verification: <pass/fail>
+- Deployment: <helm revision / job status>
+
+### Risks and Mitigations
+- <risk>
+- <mitigation>
+
+### Rollback Plan
+- <helm rollback command or image rollback step>
+```

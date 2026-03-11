@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: dbt-deps dbt-debug dbt-seed dbt-run dbt-test docker-build docker-run helm-template localstack-up localstack-down localstack-check minio-check kind-up kind-down secrets-bootstrap secrets-render k8s-secret-sync creds-rotate dev-up dev-down
+.PHONY: dbt-deps dbt-debug dbt-seed dbt-run dbt-test docker-build docker-run helm-template localstack-up localstack-down localstack-check minio-check snowflake-verify kind-up kind-down secrets-bootstrap secrets-render k8s-secret-sync creds-rotate dev-up dev-down
 
 dbt-deps:
 	cd dbt_project && dbt deps --profiles-dir ../config
@@ -37,6 +37,9 @@ localstack-check:
 
 minio-check:
 	bash scripts/minio-check.sh
+
+snowflake-verify:
+	bash scripts/snowflake-verify.sh .env.local.resolved
 
 secrets-bootstrap:
 	bash scripts/secrets-bootstrap.sh

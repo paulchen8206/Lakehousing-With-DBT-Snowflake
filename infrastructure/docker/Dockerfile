@@ -16,10 +16,10 @@ RUN useradd -m -u 1000 dbt
 USER dbt
 
 WORKDIR /opt/dbt
-RUN mkdir -p /home/dbt/.dbt
+RUN mkdir -p /home/dbt/.dbt /opt/dbt/logs
 
-COPY dbt_project /opt/dbt
-COPY config/profiles.yml /home/dbt/.dbt/profiles.yml
+COPY --chown=dbt:dbt dbt_project /opt/dbt
+COPY --chown=dbt:dbt config/profiles.yml /home/dbt/.dbt/profiles.yml
 
 ENTRYPOINT ["sh", "-lc"]
 CMD ["dbt deps && dbt debug && dbt run && dbt test"]
