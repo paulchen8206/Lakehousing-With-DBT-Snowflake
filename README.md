@@ -622,3 +622,9 @@ Use this checklist for Data Principals or Data Product Owners release sign-off:
 - [Helm chart template guide](https://helm.sh/docs/chart_template_guide/)
 - [Helm commands reference](https://helm.sh/docs/helm/)
 - [Helm upgrade command](https://helm.sh/docs/helm/helm_upgrade/)
+
+## Author
+
+- Name: paulchen8206
+- Email: [paulchen8206@gmail.com](mailto:paulchen8206@gmail.com)
+- GitHub: [github.com/paulchen8206](https://github.com/paulchen8206)
