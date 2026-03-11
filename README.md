@@ -4,6 +4,7 @@ A production-style starter project implementing a medallion architecture on Snow
 
 ## Quick Navigation
 
+- Full technology stack: `Full Stack`
 - Modern platform concepts: `Modern Data Platform and Modern Data Engineering`
 - Architecture views: `Architecture`, `Deployment Architecture`, `Production CI/CD Deployment Flow`
 - Fastest local path: `New Contributor Quickstart (5 Commands)`
@@ -11,6 +12,21 @@ A production-style starter project implementing a medallion architecture on Snow
 - Day-to-day operations: `Local Dev Environment`, `Runbooks`
 - Deployment options: `4) Deploy on Kubernetes (Raw YAML)`, `5) Deploy with Helm`
 - Automation and release: `6) CI/CD with GitHub Actions`
+
+## Full Stack
+
+| Layer | Technologies Used in This Project |
+| --- | --- |
+| Data storage and warehouse | Snowflake, S3-compatible object storage (MinIO for local) |
+| Data modeling and transformation | dbt Core, dbt-utils package, SQL models (staging, bronze, silver, gold) |
+| Data quality and validation | dbt data tests, singular SQL tests |
+| Runtime and packaging | Docker, Python 3.12 slim image |
+| Orchestration and scheduling | Kubernetes CronJob, Helm chart deployment |
+| Local cloud emulation | LocalStack (Secrets Manager and AWS APIs), MinIO |
+| Secrets and configuration | LocalStack secret bootstrap, generated `.env.local.resolved`, Kubernetes Secret sync |
+| Cluster and platform | Kind (local Kubernetes), kubectl, Helm |
+| Automation and delivery | GitHub Actions CI/CD/Release workflows, GHCR image publishing |
+| Build and developer tooling | Makefile targets, bash scripts, jq, awscli |
 
 ## Modern Data Platform and Modern Data Engineering
 
@@ -572,3 +588,33 @@ Use this checklist for Data Principals or Data Product Owners release sign-off:
 ### Rollback Plan
 - <helm rollback command or image rollback step>
 ```
+
+## Reference Documentation
+
+### dbt
+
+- [dbt docs home](https://docs.getdbt.com/)
+- [dbt Core commands](https://docs.getdbt.com/reference/commands/cmd-overview)
+- [dbt project configurations (`dbt_project.yml`)](https://docs.getdbt.com/reference/dbt_project.yml)
+- [dbt tests](https://docs.getdbt.com/docs/build/data-tests)
+
+### Snowflake
+
+- [Snowflake docs home](https://docs.snowflake.com/)
+- [Snowflake SQL command reference](https://docs.snowflake.com/en/sql-reference-commands)
+- [Snowflake stages and external tables](https://docs.snowflake.com/en/user-guide/tables-external-intro)
+- [Snowflake role-based access control (RBAC)](https://docs.snowflake.com/en/user-guide/security-access-control-overview)
+
+### Kubernetes
+
+- [Kubernetes docs home](https://kubernetes.io/docs/)
+- [CronJob concept](https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/)
+- [ConfigMap concept](https://kubernetes.io/docs/concepts/configuration/configmap/)
+- [Secret concept](https://kubernetes.io/docs/concepts/configuration/secret/)
+
+### Helm
+
+- [Helm docs home](https://helm.sh/docs/)
+- [Helm chart template guide](https://helm.sh/docs/chart_template_guide/)
+- [Helm commands reference](https://helm.sh/docs/helm/)
+- [Helm upgrade command](https://helm.sh/docs/helm/helm_upgrade/)
