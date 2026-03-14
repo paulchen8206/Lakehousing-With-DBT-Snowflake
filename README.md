@@ -1,4 +1,4 @@
-# Lakehousing With dbt + Snowflake + AWS S3 (Bronze/Silver/Gold)
+# Medallion Lakehouse ELT on Snowflake (dbt)
 
 A production-style starter project implementing a medallion architecture on Snowflake, using AWS S3 as the raw data lake, with dbt transformations, containerized execution, and Kubernetes + Helm orchestration.
 
